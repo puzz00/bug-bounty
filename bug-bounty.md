@@ -311,3 +311,223 @@ DNS is the system that translates human-readable domain names (e.g., `example.co
 ### Summary
 
 A foundational understanding of these core web technologies — HTML, CSS, JavaScript, HTTP, and DNS — is crucial for effective bug bounty hunting. They provide insight into how web applications operate, where vulnerabilities may lie, and how an application’s security can be tested responsibly. By mastering these concepts, you’ll be better equipped to identify, analyze, and report vulnerabilities that can improve an application’s overall security posture and even better make you some money 😃
+
+>[!TIP]
+>When starting out it is useful to work on bounties which offer no financial pay outs | it seems weird to suggest this but there is less competition and lots can be learned
+
+## Fingerprinting Web Applications
+
+When starting a bug bounty hunt, a thorough enumeration of in-scope assets is crucial. This process, known as "fingerprinting," involves identifying the technologies, frameworks, and services used by a target. Effective enumeration can uncover less-tested assets, which increases the likelihood of finding unique vulnerabilities and earning bounties. Additionally, responsible disclosure can be a valuable learning experience since the lesser-tested assets might still contain undiscovered weaknesses, giving you insights into real-world scenarios with minimal competition.
+
+Fingerprinting combines several tools and techniques to gain a clear understanding of the target’s technology stack and security posture. By gathering specific data, we can piece together a profile of the application and its potential weak points. Here’s an overview of common fingerprinting tools and techniques:
+
+### Tools and Techniques for Fingerprinting
+
+#### 1. **BuiltWith**
+
+BuiltWith is a website analysis tool that provides detailed information about the technologies used on a site. It’s excellent for quickly identifying front-end frameworks, content management systems, analytics tools, and even e-commerce platforms.
+
+- **Data we’re looking for**: CMS platforms (e.g., WordPress, Joomla), JavaScript frameworks (e.g., React, Angular), server technologies (e.g., Apache, Nginx), and third-party integrations.
+- **How it helps**: Knowing the specific frameworks and CMS in use can guide us to known vulnerabilities associated with those technologies, including past CVEs (Common Vulnerabilities and Exposures) and common misconfigurations.
+
+#### 2. **Wappalyzer**
+
+Wappalyzer is a browser extension that identifies technologies on the client side by examining HTTP headers, cookies, and JavaScript. It provides insights similar to BuiltWith, but with added detail on web server information and operating systems.
+
+- **Data we’re looking for**: HTTP server type, CMS, client-side frameworks, JavaScript libraries, and potential API usage.
+- **How it helps**: Wappalyzer helps confirm the client-side frameworks and services, which can be useful in finding injection points, script-based vulnerabilities, and attack surfaces like APIs or CDN services.
+
+#### 3. **SecurityHeaders.com**
+
+SecurityHeaders.com allows us to check the security-related HTTP headers that a web server sends. These headers play a crucial role in web security, as they help enforce policies on how a browser should behave when interacting with the server.
+
+- **Data we’re looking for**: Security headers such as `Content-Security-Policy` (CSP), `X-Frame-Options`, `X-XSS-Protection`, `Strict-Transport-Security` (HSTS), and `Referrer-Policy`.
+- **How it helps**: The presence or absence of security headers can indicate the application’s security stance. For example, a missing CSP might suggest potential cross-site scripting (XSS) risks, and missing HSTS headers might suggest insufficient SSL/TLS configurations.
+
+#### 4. **cURL (with Redirects)**
+
+cURL is a command-line tool for making HTTP requests. It’s a versatile tool for fingerprinting, especially when dealing with redirects and fetching headers. By using cURL with the `-L` flag, we can follow HTTP redirects, which helps uncover hidden or moved resources that might not be immediately visible.
+
+```bash
+curl -I -L http://target.com
+```
+
+- **Data we’re looking for**: Server headers, redirect paths, cookies, HTTP methods, and response status codes.
+- **How it helps**: Redirects might reveal login pages, admin interfaces, or staging environments. HTTP headers and cookies can expose server types, session management details, and load balancer configurations.
+
+#### 5. **Nmap (Network Mapper)**
+
+Nmap is a powerful network scanning tool that provides detailed information about open ports, running services, and underlying operating systems. For web application fingerprinting, Nmap can be used to identify the versions of web servers, databases, and other components.
+
+```bash
+nmap -sV -p 80,443 target.com
+```
+
+- **Data we’re looking for**: Open ports (especially HTTP and HTTPS), service versions, web server types, and SSL/TLS configurations.
+- **How it helps**: Identifying server versions helps pinpoint potential vulnerabilities. For example, if the scan reveals an outdated Apache version, we can look up CVEs associated with that version. Additionally, open ports might reveal secondary services that are less tested and more vulnerable.
+
+### Piecing It All Together
+
+Fingerprinting isn’t just about gathering isolated pieces of information; it’s about building a profile of the target. Each tool provides unique insights that contribute to an overall picture:
+
+1. **Client-Side vs. Server-Side Technologies**: Tools like BuiltWith and Wappalyzer provide a clear understanding of the front-end frameworks and CMS platforms, while Nmap and cURL give us insight into server-side configurations and potential weaknesses.
+
+2. **Security Controls**: SecurityHeaders.com reveals the extent of the target’s security configuration, helping us assess how seriously they implement security best practices. Lack of headers could indicate an application with weak client-side protections.
+
+3. **API Endpoints and Subdomains**: Redirects and domain structure (discovered through Nmap or DNS scans) can uncover additional subdomains and endpoints that may be in scope but less secure than the primary domain.
+
+4. **Vulnerabilities in Known Versions**: Identifying software versions enables us to research any known vulnerabilities for that specific software. A quick CVE search based on the version can provide a list of exploitable issues that may not be patched in the target environment.
+
+### Conclusion
+
+Fingerprinting provides a roadmap for testing by building a strong knowledge base on the target’s technology stack. By thoroughly analyzing in-scope assets, understanding the security configurations, and identifying specific versions of components, you’ll be in a prime position to detect vulnerabilities others may have missed. This stage of bug bounty hunting is essential for an effective and responsible approach to identifying and reporting vulnerabilities.
+
+>[!NOTE]
+>Be thorough when fingerprinting targets - keep notes and screenshots - all data at this stage is useful | consider this - is it better to throw 10_000 darts at a tiny target or just 1 at a massive target - fingerprinting increases the size of our targets attack surface
+
+## Directory Enumeration and Fuzzing
+
+Directory enumeration and fuzzing are essential steps in bug bounty hunting as they help uncover hidden or misconfigured directories and files on a web server. These can reveal admin panels, backup files, test environments, and other sensitive data that are not intended to be publicly accessible.
+
+### What is Directory Enumeration and Why is it Important?
+
+Directory enumeration involves systematically testing a web server for directories, files, and hidden resources. This process helps to map out the structure of a web application, identifying endpoints that are not obvious from the main navigation or public URLs. Fuzzing extends this by testing a broader set of paths, parameters, or file extensions that may expose additional attack surfaces. Identifying these resources is crucial, as they often reveal vulnerable endpoints or configurations that can lead to a successful exploit.
+
+### Key Tools for Directory Enumeration and Fuzzing
+
+1. **ffuf (Fuzz Faster U Fool)**
+
+   `ffuf` is a fast web fuzzer designed for discovering hidden directories and files on a web server. It’s flexible and allows for customizations in searching paths, filtering responses, and more.
+
+   **Example command for basic directory enumeration**:
+   ```bash
+   ffuf -w /path/to/wordlist.txt -u http://target.com/FUZZ -mc 200
+   ```
+   - **`-w`**: Specifies the wordlist to use for directory enumeration.
+   - **`-u`**: Defines the target URL, with `FUZZ` as a placeholder for the directory names.
+   - **`-mc 200`**: Filters results to show only those with a 200 HTTP status code (successful responses).
+
+   **Recursive search example**:
+   ```bash
+   ffuf -w /path/to/wordlist.txt -u http://target.com/FUZZ -recursion -recursion-depth 2 -mc 200
+   ```
+   - **`-recursion`**: Enables recursive directory search.
+   - **`-recursion-depth`**: Sets the depth for recursive search.
+
+   **Excluding specific HTTP response codes**:
+   ```bash
+   ffuf -w /path/to/wordlist.txt -u http://target.com/FUZZ -fc 404
+   ```
+   - **`-fc 404`**: Excludes responses with a 404 status code.
+
+   **Searching for specific file extensions**:
+   ```bash
+   ffuf -w /path/to/wordlist.txt -u http://target.com/FUZZ.php -mc 200
+   ```
+   - Replacing `FUZZ` with file extensions like `.php`, `.bak`, `.zip` can help find misconfigured or backup files.
+
+>[!NOTE]
+>We will be using `ffuf` when we get to hands on practise examples so do not worry too much about the commands - it is not necessary to memorize them as by working with them over time they will become second nature
+
+2. **gobuster**
+
+   `gobuster` is another popular directory and file brute-forcing tool that’s known for its speed and versatility. It works with custom wordlists and can filter results by status codes.
+
+   **Basic directory enumeration**:
+   ```bash
+   gobuster dir -u http://target.com -w /path/to/wordlist.txt
+   ```
+
+   **Excluding specific HTTP response codes**:
+   ```bash
+   gobuster dir -u http://target.com -w /path/to/wordlist.txt -b 404
+   ```
+   - **`-b`**: Excludes certain HTTP response codes, like 404.
+
+   **Searching for file extensions**:
+   ```bash
+   gobuster dir -u http://target.com -w /path/to/wordlist.txt -x php,html,bak
+   ```
+   - **`-x`**: Allows for searching specific file extensions such as `.php`, `.html`, and `.bak`.
+
+>[!TIP]
+>Whilst directory busting is super fun and super useful it is still worth remembering to**check `robots.txt`**
+
+### 🔎 **Checking `robots.txt`?**
+
+Here are some good reasons to have a look at `robots.txt`
+
+1. **Hidden Directories and Files**  
+   - `robots.txt` tells search engines what **not to index**, which often includes sensitive or hidden paths.  
+   - Developers might list admin panels, dev environments, or backups they don’t want publicly visible.  
+   - Example:  
+     ```
+     Disallow: /admin/
+     Disallow: /backup/
+     Disallow: /dev/
+     ```
+
+2. **Unintentional Exposure**  
+   - Sometimes, developers mistakenly add sensitive directories to `robots.txt` instead of properly securing them.  
+   - It’s a **public file**, so anyone (including attackers) can access it.
+
+3. **Reconnaissance Shortcut**  
+   - Instead of blindly brute-forcing directories, checking `robots.txt` can reveal **high-value targets** directly.  
+   - Saves time and helps prioritize attack surfaces.
+
+4. **Custom Error Pages and Clues**  
+   - Paths to custom error pages or internal tools might be disallowed, revealing **tech stack details**.  
+   - Example:  
+     ```
+     Disallow: /error/500.html
+     Disallow: /phpmyadmin/
+     ```
+
+5. **Access to Deprecated Features**  
+   - Old or deprecated parts of a website might still be online but hidden using `robots.txt`.  
+   - This can lead to **outdated software vulnerabilities**.
+
+---
+
+#### 🚀 **How to Use `robots.txt` in Recon**
+
+1. **Manual Check:**  
+   - Simply visit: `https://target.com/robots.txt`
+
+2. **Automated Tools:**  
+   - **Gobuster** (with the `-u` flag):  
+     ```bash
+     gobuster dir -u https://target.com -w /path/to/wordlist.txt
+     ```  
+   - **wget** or **curl** for quick retrieval:  
+     ```bash
+     curl https://target.com/robots.txt
+     ```
+
+3. **Combine with Directory Busting:**  
+   - If `robots.txt` reveals `/staging/`, prioritize brute-forcing that directory:  
+     ```bash
+     ffuf -u https://target.com/staging/FUZZ -w /path/to/wordlist.txt
+     ```
+
+---
+
+#### ⚠️ **Limitations to Consider**
+
+- **Not All Sensitive Data Is Listed:** Some admins rely on proper security, so `robots.txt` alone won’t reveal everything.  
+- **Security Through Obscurity:** `robots.txt` is not a security control—it only affects search engine indexing.
+
+---
+
+#### 🎯 **Pro Tip:**  
+Combine `robots.txt` findings with other recon data, like **subdomain enumeration** and **directory brute-forcing**, to uncover hidden attack surfaces faster.
+
+#### Putting it All Together
+
+Directory enumeration and fuzzing allow us to map hidden parts of the web application’s directory structure and identify sensitive files. By combining recursive scanning, filtering status codes, looking at `robots.txt` and testing various file extensions, we get a deeper understanding of the web application’s layout and configuration.
+
+Each tool brings unique strengths to the table, and by utilizing them strategically, we can gain insight into less visible areas of the application. This process often uncovers sensitive endpoints or resources that might otherwise go unnoticed, offering us critical footholds in our bug hunting efforts.
+
+
+
+
