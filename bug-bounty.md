@@ -528,6 +528,154 @@ Directory enumeration and fuzzing allow us to map hidden parts of the web applic
 
 Each tool brings unique strengths to the table, and by utilizing them strategically, we can gain insight into less visible areas of the application. This process often uncovers sensitive endpoints or resources that might otherwise go unnoticed, offering us critical footholds in our bug hunting efforts.
 
+## Subdomain Enumeration
+
+Subdomain enumeration is a crucial step in bug bounty hunting. By identifying additional subdomains that are in scope, we expand the attack surface, often finding less-secured or unmaintained assets that might lead to vulnerabilities. Since some companies may overlook securing every subdomain to the same degree, these assets can be valuable targets for bug hunters.
+
+### Understanding URL Structure
+
+To understand subdomain enumeration, let’s break down a sample URL:
+
+```
+https://subdomain.example.com/path/page
+```
+
+In this URL:
+- **`subdomain`** is the subdomain, a unique name in front of the main domain (in this case, `example.com`).
+- **`example`** is the second level domain.
+- ** `.com`** is the top level domain.
+- **`https://`** is the protocol, defining how the client and server communicate.
+  
+Subdomains often represent different parts of a web application, like `admin.example.com`, `blog.example.com`, or `dev.example.com`. While the main domain may be well-secured, subdomains can sometimes be overlooked, leaving gaps for vulnerabilities. Uncovering subdomains that are in-scope helps us identify more points of entry.
+
+>[!IMPORTANT]
+>Check the scope to make sure subdomains are fair game - the `*` is a good sign - for example `*.tesla.com` means all subdomains are in scope unless specificaly mentioned as being out of scope
+
+### Methods for Subdomain Enumeration
+
+1. **Using `subfinder`**
+
+   `subfinder` is a fast subdomain enumeration tool that uses passive sources to gather subdomains of a target. It collects results from various services and APIs to generate a list of known subdomains.
+
+   **Basic command**:
+   ```bash
+   subfinder -d example.com
+   ```
+   - **`-d`** specifies the domain to scan.
+
+   **Saving results to a file**:
+   ```bash
+   subfinder -d example.com -o subdomains.txt
+   ```
+   - **`-o`** saves the output to `subdomains.txt` for further processing.
+
+2. **Using `amass`**
+
+   `amass` is a powerful tool for in-depth subdomain enumeration that can perform both passive and active scans, providing comprehensive results.
+
+   **Basic command for passive enumeration**:
+   ```bash
+   amass enum -passive -d example.com
+   ```
+   - **`enum`** specifies enumeration mode.
+   - **`-passive`** limits the scan to passive data sources.
+
+   **Active and exhaustive scan**:
+   ```bash
+   amass enum -active -d example.com
+   ```
+   - **`-active`** initiates active probing for a more thorough scan.
+
+3. **Using Online Tools**
+
+   Online tools can help find subdomains without setting up local tools. A good example is [SecurityTrails](https://securitytrails.com/)
+
+4. **Google Dorks**
+
+   Google search operators, known as Google Dorks, can help identify subdomains. Some useful operators include:
+   
+   ```plaintext
+   site:*.example.com
+   ```
+   - **`site`** restricts results to subdomains of `example.com`.
+
+   ```plaintext
+   site:example.com -www -shop
+   ```
+   - As above but does not show the subdomains prefaced by `-` which helps us find more subdomains.
+
+   **Dorking can reveal hidden pages** on less secure subdomains, as well as outdated or test environments that might be vulnerable.
+
+5. **Crawling with Burp Suite**
+
+   Often, applications reference other subdomains in scripts, links, or headers that Burp can extract.
+
+We can start burp up, add our target site to the scope and then just click around it. We will learn more about its buisiness logic and at the same time burp will be recording what it finds as we crawl it.
+
+- Use the **Target > Site map** view in Burp Suite to see the subdomains it discovers as we crawl the website.
+
+>[!NOTE]
+>We can **spider** websites which is an automated version of crawling | the free community version of **burpsuite** no longer lets us do this but the free proxy from **owasp** called **zap** still has this feature
+
+6. **Subdomain Enumeration with FFUF and Gobuster**
+
+**FFUF (Fuzz Faster U Fool)** can be used for discovering subdomains through DNS brute-forcing.
+
+**Basic Command:**
+```bash
+ffuf -u https://FUZZ.target.com -w /path/to/wordlist.txt -fs 20
+```
+
+**Explanation:**
+- `-u https://FUZZ.target.com`: FUZZ will be replaced by words from the wordlist.
+- `-w /path/to/wordlist.txt`: Path to the subdomain wordlist.
+- `-fs 20`: Filters out responses with a size of 20 bytes to reduce false positives.
+
+**Advanced Example:**
+```bash
+ffuf -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -u https://FUZZ.target.com -mc 200,302 -fs 4242
+```
+- `-mc 200,302`: Displays responses with status codes 200 (OK) and 302 (Redirect).
+- `-fs 4242`: Filters out responses matching a size of 4242 bytes (useful for wildcard DNS detection).
+
+---
+
+**Gobuster** can be used for DNS subdomain brute-forcing.
+
+**Basic Command:**
+```bash
+gobuster dns -d target.com -w /path/to/wordlist.txt -t 50
+```
+
+**Explanation:**
+- `dns`: Enables DNS mode for subdomain enumeration.
+- `-d target.com`: Specifies the target domain.
+- `-w /path/to/wordlist.txt`: Path to the subdomain wordlist.
+- `-t 50`: Number of concurrent threads (adjust for speed and performance).
+
+**Advanced Example:**
+```bash
+gobuster dns -d target.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -t 100 -o subdomains.txt -fw
+```
+- `-o subdomains.txt`: Saves the discovered subdomains to a file.
+- `-fw`: Filters out wildcard DNS results to avoid false positives.
+
+>[!TIP]
+>**Use Reliable Wordlists:** Wordlists are key to success with this method of subdomain enumeration | [SecLists](https://github.com/danielmiessler/SecLists) are a good place to start.
+
+7. **Piecing Together the Enumeration Results**
+
+   Combining results from `subfinder`, `amass`, online tools, Google dorks, Burp Suite, Zap, ffuf and gobuster can give a comprehensive list of subdomains. With this information, you can start evaluating each subdomain for in-scope vulnerabilities or security gaps.
+   
+>[!TIP]
+>Pay special attention to unusual or development-oriented subdomains (`dev.example.com` or `staging.example.com`) as these are more likely to contain misconfigurations or overlooked weaknesses
+
+### Summary
+
+Subdomain enumeration opens up more potential targets for bug bounty hunting, particularly on lesser-known or internal subdomains. By using multiple tools and techniques, you can maximize your findings and increase your chances of uncovering exploitable vulnerabilities across a broader set of assets.
+
+>[!NOTE]
+>Subdomains may have subdomains | for example `https://dev.tesla.com` might have something such as `https://admin.dev.tesla.com` so it is worthwhile checking for these if the scope allows it
 
 
 
