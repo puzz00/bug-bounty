@@ -753,5 +753,111 @@ By configuring a defined scope, Burp Suite will focus on requests and responses 
 
 Burp Suite combines various powerful tools for examining and manipulating web application traffic. By leveraging Intercept, Intruder, Repeater, and Decoder, along with proper scope settings, bug hunters and penetration testers can systematically analyze and exploit vulnerabilities in a controlled and organized way.
 
+## Attacking Authentication
 
+We will now look at how we can attack authentication mechanisms.
 
+### Introduction to Authentication 
+
+Authentication is the process of verifying the identity of a user, system, or entity attempting to access a resource. It ensures that only authorized users can log in, access sensitive information, or perform specific actions. Common authentication mechanisms include: 
+- **Username and password**: The most basic form of authentication. 
+- **Tokens**: Unique codes or JWTs (JSON Web Tokens) generated for a user session. 
+- **Multi-factor authentication (MFA)**: Adding an extra layer of verification, such as a one-time password (OTP) or biometric data. 
+
+While authentication is critical to securing applications, it is often a target for attackers due to its potential weaknesses. Misconfigured or poorly implemented authentication systems can lead to unauthorized access and data breaches. 
+
+### Common Authentication Attacks 
+
+#### 1. **Brute Force Attacks** 
+In a brute force attack, the attacker systematically attempts many username and password combinations until the correct one is found. 
+- **Why it works**: Weak or common passwords, no account lockout mechanisms. 
+- **How to test**: 
+   Use tools like **Burp Suite Intruder**, Hydra, or `ffuf` to automate login attempts. 
+
+#### 2. **Credential Stuffing** 
+Credential stuffing involves using leaked username-password pairs from other breaches to gain access. 
+- **Why it works**: Many users reuse passwords across multiple services. 
+- **How to test**: 
+   Use lists of leaked credentials and tools like `Burp Suite Intruder` or **credstuff.py** to automate testing. 
+
+#### 3. **Session Hijacking** 
+Session hijacking involves stealing or guessing session tokens to impersonate a user. 
+- **Why it works**: Insecure session storage, predictable session IDs, or lack of session expiration. 
+- **How to test**: 
+   - Capture session tokens using Burp Suite. 
+   - Test if tokens can be replayed or guessed. 
+
+#### 4. **Password Spraying** 
+Instead of guessing a password for a single user, password spraying uses a single common password across many accounts to avoid triggering lockout mechanisms. 
+- **Why it works**: Many users use weak or common passwords like `123456` or `password`. 
+- **How to test**: 
+   - Use Burp Suite or a tool like **ffuf** with a single password against multiple usernames. 
+
+#### 5. **Bypassing Multi-Factor Authentication (MFA)** 
+MFA adds a layer of security, but it is not immune to attacks: 
+- **Methods of bypassing MFA**: 
+   - **Social engineering**: Tricking users into revealing OTPs. 
+   - **Replay attacks**: Using captured OTPs within their short validity window. 
+   - **Exploiting backup options**: Misconfigurations in backup authentication mechanisms like email or SMS recovery. 
+
+### Enumerating Usernames and Brute Forcing Passwords 
+
+A common attack against authentication is to brute force credentials. In order to do this we will need a valid username so enumerating usernames is an important first step.
+
+#### Why Enumerating Usernames Matters 
+
+Enumerating valid usernames is a critical first step in attacking authentication mechanisms. Identifying valid usernames allows attackers to focus on potential entry points, either through brute force or password spraying. Login pages often unintentionally reveal information about valid accounts via inconsistent error messages or response behaviors. 
+
+#### Example: Enumerating Usernames via Login Error Messages 
+
+A common scenario involves a login form that returns distinct error messages for invalid usernames versus incorrect passwords. An example of this is: 
+- **"Invalid username"** for usernames not in the system. 
+- **"Incorrect password"** for usernames that are valid but have incorrect passwords. 
+
+##### Step 1: Identifying the Response Patterns 
+Using **Burp Suite Intruder**, we can test multiple usernames against the login page and analyze the response size to differentiate valid usernames from invalid ones. 
+
+**Process**: 
+1. Capture a login request using Burp Suite's **Intercept** tool. 
+2. Send the request to **Intruder**. 
+3. Mark the username field as the **position** to be tested. 
+4. Load a list of common usernames into the **Payloads** section. 
+5. Start the attack and observe the response sizes: 
+   - Smaller or different-sized responses indicate valid usernames. 
+
+![ue1](images/1.png)
+
+![ue2](images/2.png)
+
+![ue3](images/3.png)
+
+![ue4](images/4.png)
+
+![ue5](images/5.png)
+
+##### Step 2: Brute Forcing Passwords
+Once valid usernames are identified, brute forcing can be used to test common passwords for those accounts.
+
+If the application lacks protections like rate limiting or account lockout, brute-forcing can yield valid credentials. 
+
+**Process**: 
+1. Capture a login request for a valid username using Burp Suite. 
+2. Send the request to **Intruder**. 
+3. Mark the password field as the **position** to test. 
+4. Load a list of common passwords into the **Payloads** section. 
+5. Start the attack and look for successful login indicators: 
+   - A **302 Redirect** response or different content size often indicates valid credentials. 
+
+>[!IMPORTANT]
+>Always confirm that brute-forcing is permitted under the bug bounty program's scope | we may well be allowed to attempt brute-forcing against an account which we own as a proof of concept attack
+
+![ue6](images/6.png)
+
+![ue7](images/7.png)
+
+![ue8](images/8.png)
+
+![ue9](images/9.png)
+
+>[!NOTE]
+>The above attack seems crude and basic because it is crude and basic - we should never assume however that modern web apps dont suffer from such obvious vulns as missing rate limiting - remember to **test everything**
