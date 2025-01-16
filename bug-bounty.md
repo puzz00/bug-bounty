@@ -677,5 +677,81 @@ Subdomain enumeration opens up more potential targets for bug bounty hunting, pa
 >[!NOTE]
 >Subdomains may have subdomains | for example `https://dev.tesla.com` might have something such as `https://admin.dev.tesla.com` so it is worthwhile checking for these if the scope allows it
 
+## Burp Suite Overview
+
+**Burp Suite** is a widely-used web vulnerability scanner and proxy tool in the cybersecurity community, particularly popular among bug bounty hunters and penetration testers. Developed by PortSwigger, Burp Suite provides a suite of tools to analyze, intercept, and manipulate HTTP/S traffic, making it an essential tool for finding security flaws in web applications.
+
+### What is Burp Suite and How Does It Work?
+
+Burp Suite operates as a **proxy server** that intercepts and analyzes traffic between a web browser and a target web application. By intercepting HTTP/S requests and responses, Burp enables testers to inspect, modify, and manipulate the data, facilitating in-depth testing for vulnerabilities like SQL injection, cross-site scripting (XSS), and authentication bypasses. Burp Suite’s intuitive interface and wide range of tools streamline both manual and automated testing efforts.
+
+### Key Tools in Burp Suite
+
+#### 1. **Intercept**
+
+   The **Intercept** tool allows you to stop and inspect individual HTTP/S requests and responses as they pass between the client (your browser) and the server (target web application). This tool is particularly useful for examining and modifying requests before they reach the server, allowing you to test for vulnerabilities by altering parameters, headers, cookies, or other data within the request.
+
+   **How to Use Intercept**:
+   - Enable **Intercept** in the Proxy tab.
+   - Set your browser to use Burp Suite as a proxy.
+   - As you navigate through the application, Burp will pause traffic, showing you each request before it’s sent.
+   - You can then inspect or modify the request and click **Forward** to send it, or **Drop** to discard it.
+
+#### 2. **Intruder**
+
+   **Intruder** is a powerful tool for automating customized attacks, such as brute-forcing, parameter fuzzing, or testing various payloads. With Intruder, you can set specific parameters to modify and define payloads for those parameters, creating a variety of attack scenarios.
+
+   **Example Use Case**:
+   - Testing login pages by brute-forcing usernames and passwords.
+   - Fuzzing inputs for injections or response differences.
+
+   **Basic Setup**:
+   - Capture a request you want to test using Intercept.
+   - Send it to Intruder by right-clicking the request and selecting **Send to Intruder**.
+   - Set **Positions** (the parts of the request you want to modify) and choose your **Payloads** (the values you want to inject or test with).
+
+#### 3. **Repeater**
+
+   **Repeater** is used for manual testing of specific requests. It allows you to repeat and modify a request multiple times, observing how the server responds to different inputs.
+
+   **Use Cases**:
+   - Testing SQL injection by altering a parameter’s value and seeing how the application reacts.
+   - Modifying request headers or cookies to check for authentication or authorization flaws.
+
+   **How to Use Repeater**:
+   - Capture a request in the Proxy or Intercept, then right-click and select **Send to Repeater**.
+   - In Repeater, modify the request as desired and click **Send** to view the response.
+
+#### 4. **Decoder**
+
+   **Decoder** helps decode and encode data in various formats, such as URL encoding, Base64, or hexadecimal. This tool is useful when analyzing encoded data or transforming payloads.
+
+   **Use Cases**:
+   - Decoding Base64-encoded tokens to understand their content.
+   - Encoding payloads for safe transmission within a URL.
+
+   **Using Decoder**:
+   - Paste the data you want to encode or decode, choose the encoding method, and click **Encode** or **Decode** as needed.
+
+### Setting Scope in Burp Suite
+
+Setting a scope in Burp Suite ensures that only traffic related to the in-scope assets is captured and analyzed. This is essential to stay focused on the target domains and subdomains permitted for testing and to avoid analyzing out-of-scope requests.
+
+1. **Defining Scope**:
+   - Go to **Target > Scope** and add the target domain(s) or subdomain(s) you want to include.
+   
+2. **Restricting Proxy Interception to In-Scope Traffic**:
+   - In **Proxy > Options**, under **Intercept Client Requests**, enable **Only Intercept In-Scope Items**.
+   - Similarly, under **Intercept Server Responses**, enable **Only Intercept In-Scope Items**.
+
+3. **Filtering Traffic**:
+   - You can also set scope filters under **Target > Site Map** by checking **Show only in-scope items** to view only relevant requests and responses.
+
+By configuring a defined scope, Burp Suite will focus on requests and responses that match your target criteria, keeping your workspace organized and preventing accidental interactions with out-of-scope assets.
+
+### Summary
+
+Burp Suite combines various powerful tools for examining and manipulating web application traffic. By leveraging Intercept, Intruder, Repeater, and Decoder, along with proper scope settings, bug hunters and penetration testers can systematically analyze and exploit vulnerabilities in a controlled and organized way.
+
 
 
