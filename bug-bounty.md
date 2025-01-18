@@ -949,4 +949,87 @@ sudo ffuf -request req3.txt -request-proto https -w passwords.txt:FUZZ -mc 302
 
 ![ue21](images/21.png)
 
+### Enumerating Usernames via Long Response Times 
 
+Some web applications inadvertently leak information about valid usernames through response times during authentication attempts. In this example, we explore: 
+- Identifying and bypassing IP-based blocks. 
+- Exploiting long response times to enumerate usernames. 
+
+#### Step 1: Overcoming IP Blocks 
+
+During testing, we discover that after **three failed login attempts**, the server blocks further requests from our IP.
+
+![ue22](images/22.png)
+
+To investigate whether the block is determined by request headers, we add and manipulate the following headers in our requests: 
+- `X-Real-IP` 
+- `X-Forwarded-For` 
+- `X-Originating-IP` 
+- `Client-IP` 
+- `True-Client-IP` 
+
+![ue23](images/23.png)
+
+##### Process: 
+1. Using Burp Suite's **Repeater**, add these headers to the request and test login attempts. 
+2. Observe that adding or modifying the `X-Forwarded-For` header bypasses the block. 
+3. Systematically remove each header to confirm that the block is solely based on the `X-Forwarded-For` header.
+
+![ue24](images/24.png)
+
+#### Step 2: Identifying Response Time Patterns 
+
+We proceed to test usernames by leveraging response times. The hypothesis is that the server takes longer to respond to requests for valid usernames, likely due to additional processing (e.g., password verification).
+
+##### Using a Pitchfork Attack in Burp Suite: 
+1. Send the login request to **Intruder**. 
+2. Set two payload positions: 
+   - **Position 1**: The IP address in the `X-Forwarded-For` header to increment sequentially. 
+   - **Position 2**: The username field to iterate through a list of potential usernames. 
+3. Load: 
+   - A list of IP addresses into the first payload. 
+   - A list of usernames into the second payload. 
+4. Use a long, intentionally incorrect password for all requests. 
+5. Monitor the response times. 
+
+![ue25](images/25.png)
+
+![ue26](images/26.png)
+
+![ue27](images/27.png)
+
+##### Result: 
+We find that one username (`agent`) causes a significantly longer response time, indicating it is valid. This behavior suggests the server skips password validation for incorrect usernames. 
+
+![ue28](images/28.png)
+
+#### Step 3: Brute Forcing Passwords 
+
+With the valid username `agent` identified, the next step is brute-forcing the password while continuing to bypass the IP block. 
+
+##### Using Pitchfork for Brute Forcing: 
+1. Keep the **X-Forwarded-For** header position to iterate IP addresses. 
+2. Fix the username to `agent`. 
+3. Use the second payload position to test common passwords. 
+4. Monitor for a successful login indicator (e.g., **HTTP 302 Redirect**). 
+
+![ue29](images/29.png)
+
+##### Result: 
+We identify the correct password: **killer**. 
+
+![ue30](images/30.png)
+
+#### Logging In 
+
+Using the credentials `agent:killer`, we successfully log into the application. 
+
+![ue31](images/31.png)
+
+#### Key Considerations 
+
+1. **Rate Limiting and IP Blocking**: 
+   Applications may use headers like `X-Forwarded-For` to track users. Testing these headers can reveal bypass methods for rate-limiting mechanisms. 
+
+2. **Response Times as Indicators**: 
+   Long response times are a common vulnerability in poorly implemented authentication systems, but they can often only be exploited in conjunction with other findings.
