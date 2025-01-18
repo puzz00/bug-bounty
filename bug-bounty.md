@@ -861,3 +861,45 @@ If the application lacks protections like rate limiting or account lockout, brut
 
 >[!NOTE]
 >The above attack seems crude and basic because it is crude and basic - we should never assume however that modern web apps dont suffer from such obvious vulns as missing rate limiting - remember to **test everything**
+
+### Password Spraying with Enumerated Usernames 
+
+Once a list of valid usernames is obtained, **password spraying** can be used to test a single common password across all accounts. This approach minimizes the risk of triggering account lockouts. 
+
+#### Using Burp Suite Intruder's Clusterbomb Mode 
+Burp Suite’s **Clusterbomb mode** allows you to test combinations of multiple payloads. 
+
+**Setup**: 
+1. Send a captured login request to **Intruder**. 
+2. Set both the username and password fields as **positions**. 
+3. In **Payloads**, load the usernames into one list and a short list of common or suspected passwords into another.
+4. Start the attack and analyze the responses. 
+
+![ue10](images/10.png)
+
+![ue11](images/11.png)
+
+![ue12](images/12.png)
+
+#### Using FFUF for Password Spraying 
+`ffuf` can also automate password spraying with the `clusterbomb` mode. 
+
+To get the **req2.txt** file used in the example given we just right click on the **request** in **burpsuite** and save it. We then edited it so the values for the **username** and **password** parameters were **FUZZUSER** and **FUZZPAS** This makes them markers or place holders for **ffuf** to know where to inject names and passwords from the wordlists we pass to it.
+
+**Command**: 
+```bash  
+sudo ffuf -request req2.txt -request-proto https -mode clusterbomb -w user.txt:FUZZUSER -w pass.txt:FUZZPASS -fc 200  
+```  
+- **`req2.txt`**: Contains the login request template with `FUZZUSER` and `FUZZPASS` placeholders. 
+- **`-w`**: Specifies wordlists for usernames and passwords. 
+- **`-fc 200`**: Excludes HTTP 200 responses, focusing on status codes that indicate failed attempts. 
+
+![ue13](images/13.png)
+
+![ue14](images/14.png)
+
+![ue15](images/15.png)
+
+
+
+
