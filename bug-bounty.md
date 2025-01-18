@@ -1033,3 +1033,99 @@ Using the credentials `agent:killer`, we successfully log into the application.
 
 2. **Response Times as Indicators**: 
    Long response times are a common vulnerability in poorly implemented authentication systems, but they can often only be exploited in conjunction with other findings.
+
+### Bypassing Login Lockout Using Alternating Requests and a Pitchfork Attack 
+
+During testing, we find that the application enforces a **1-minute lockout** after **three failed login attempts**.
+
+![ue31a](images/31a.png)
+
+However, using an account we own (`wiener`), we discover a behavior that resets the lockout counter: 
+- **Successfully logging in** with valid credentials clears the lockout state.
+
+This insight allows us to craft a strategy that alternates login attempts between our account and the target account (`carlos`), avoiding the lockout mechanism.
+
+#### Crafting a Custom Attack 
+
+To exploit this behavior, we: 
+1. **Create a username list** (`pfusers.txt`) that alternates between our username (`wiener`) and the target username (`carlos`): 
+   ```
+   wiener
+   carlos
+   wiener
+   carlos
+   ...  
+   ```  
+
+2. **Create a matching password list** (`passwords.txt`) that alternates between: 
+   - The known valid password for `wiener` (`peter`). 
+   - Possible passwords for `carlos` from a wordlist. 
+
+![ue31b](images/31b.png)
+
+![ue31c](images/31c.png)
+
+#### Using FFUF with a Pitchfork Attack 
+
+##### What is a Pitchfork Attack? 
+
+A **pitchfork attack** tests multiple payload sets simultaneously, pairing corresponding entries from two (or more) wordlists. Each request uses one payload from each list, allowing for highly targeted testing. 
+
+In this case: 
+- Payload 1 (`FUZZUSER`) tests usernames (`wiener` and `carlos`). 
+- Payload 2 (`FUZZPASS`) tests passwords. 
+
+![ue31d](images/31d.png)
+
+##### FFUF Command: 
+
+```bash  
+sudo ffuf -request req4.txt -rate 1 -request-proto https -mode pitchfork -w pfusers.txt:FUZZUSER -w passwords.txt:FUZZPASS -mc 302 -o pfres.txt  
+```  
+
+**Explanation of Flags**: 
+- **`-request req4.txt`**: Specifies the HTTP request template, with placeholders for the `FUZZUSER` and `FUZZPASS` positions. 
+- **`-rate 1`**: Ensures requests are sent in sequence (critical for lockout avoidance). 
+- **`-mode pitchfork`**: Uses the pitchfork attack mode to pair entries from the two wordlists. 
+- **`-mc 302`**: Matches HTTP 302 responses, indicating successful logins. 
+- **`-o pfres.txt`**: Outputs results to a file for review. 
+
+##### Results: 
+FFUF identifies a successful login for `carlos` when paired with the password `12345`. 
+
+![ue31e](images/31e.png)
+
+#### Validating Results in Burp Suite 
+
+To confirm the FFUF findings, we replicate the attack using Burp Suite’s **Intruder**. 
+
+##### Steps in Intruder: 
+1. **Send the request** to Intruder and mark the username and password fields as payload positions. 
+2. Select **Pitchfork** as the attack type. 
+3. Load the same wordlists (`pfusers.txt` and `passwords.txt`) as payloads for the respective positions. 
+4. Navigate to the **Resource Pool** tab: 
+   - **Create a new resource pool**. 
+   - Set the **Maximum concurrent requests** to `1` to ensure sequential requests. 
+
+![ue31f](images/31f.png)
+
+![ue31g](images/31g.png)
+
+![ue31h](images/31h.png)
+
+##### Result: 
+The same username-password pair (`carlos:12345`) produces an HTTP 302 redirect, confirming the successful login. 
+
+![ue31i](images/31i.png)
+
+#### Key Considerations 
+
+1. **Rate Management**: 
+   The attack relies on sequential requests. Tools like FFUF’s `-rate` flag and Intruder’s resource pool settings help maintain this sequence. 
+
+2. **Lockout Mechanisms**: 
+   Many lockout mechanisms can be bypassed if you identify behaviors (like resetting on successful login) that can be exploited strategically. 
+
+#### Summary 
+
+By alternating requests between our own account and the target account, we bypassed the lockout mechanism and identified valid credentials (`carlos:12345`) using a pitchfork attack in both FFUF and Burp Suite. This example highlights the importance of understanding application behavior and using advanced attack techniques to exploit subtle flaws in security mechanisms. 
