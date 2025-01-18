@@ -900,6 +900,53 @@ sudo ffuf -request req2.txt -request-proto https -mode clusterbomb -w user.txt:F
 
 ![ue15](images/15.png)
 
+### Identifying Slightly Different Response Strings 
 
+Some login forms are subtle in how they indicate valid usernames, providing responses with only minor differences for valid versus invalid entries. This is usually a mistake on the part of the developers. For example, we might find something like: 
+- **Invalid username or password.** (invalid username) 
+- **Invalid username or password** (no period at the end = valid username). 
+
+These differences can be identified using Burp Suite’s **Grep Match** functionality, allowing precise detection of valid usernames.
+
+#### Step 1: Enumerating Usernames with Burp Suite 
+
+##### Setup: 
+1. Capture a login request in Burp Suite’s **Intercept** tool. 
+2. Send the captured request to **Intruder**. 
+3. Mark the username field as the **position** to test. 
+4. Load a wordlist of potential usernames into the **Payloads** section. 
+
+##### Using Grep Match: 
+1. Go to the **Options** tab in Intruder. 
+2. In the **Grep Match** section, add patterns to match the expected response, such as the string we know comes back for an incorrect login attempt "Invalid username or password." 
+3. Run the attack. 
+4. Look for responses that do not match the Grep condition, indicating valid usernames.
+
+![ue16](images/16.png)
+
+![ue17](images/17.png)
+
+#### Step 2: Brute Forcing Apollo’s Password 
+
+Once a valid username (`apollo`) is identified, the next step is to find its password using tools like `ffuf`. 
+
+##### Command: 
+```bash  
+sudo ffuf -request req3.txt -request-proto https -w passwords.txt:FUZZ -mc 302  
+```  
+- **`req3.txt`**: Contains the login request with `apollo` as the fixed username and `FUZZ` as the password placeholder. 
+- **`-w passwords.txt:FUZZ`**: Specifies the wordlist for passwords. 
+- **`-mc 302`**: Matches only HTTP 302 responses, which often indicate successful login
+
+>[!TIP]
+>Create an account on the target app and use a proxy like burp to analyze how the login process works using it | this lets you know the logic and how it works | this is how we can know things like a 302 indicates a successful login
+
+![ue18](images/18.png)
+
+![ue19](images/19.png)
+
+![ue20](images/20.png)
+
+![ue21](images/21.png)
 
 
