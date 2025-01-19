@@ -1129,3 +1129,100 @@ The same username-password pair (`carlos:12345`) produces an HTTP 302 redirect, 
 #### Summary 
 
 By alternating requests between our own account and the target account, we bypassed the lockout mechanism and identified valid credentials (`carlos:12345`) using a pitchfork attack in both FFUF and Burp Suite. This example highlights the importance of understanding application behavior and using advanced attack techniques to exploit subtle flaws in security mechanisms. 
+
+### Enumerating Usernames Using Error Messages from Locked Accounts 
+
+Applications often handle login attempts differently for valid and invalid usernames. By observing responses when a valid account is locked, we can deduce usernames and further test them to extract credentials. In this scenario, we use tools like **FFUF** and **Burp Suite Intruder** to identify locked accounts and brute force their passwords. 
+
+#### FFUF: Finding Locked Usernames 
+
+##### Step 1: Identify Typical Response Sizes 
+
+We start by testing a list of potential usernames (`new_users.txt`) against a small list of passwords (`new_pass.txt`). Using FFUF in **clusterbomb mode**: 
+
+![ue31j](images/31j.png)
+
+```bash  
+sudo ffuf -request req6.txt -request-proto https -mode clusterbomb -w new_users.txt:FUZZUSER -w new_pass.txt:FUZZPASS -mc all  
+```  
+
+**Explanation**: 
+- **`-mode clusterbomb`**: Allows the tool to test all combinations of usernames and passwords. 
+- **`-mc all`**: Captures all HTTP response codes for analysis. 
+
+This reveals a **typical response size** of 3132 bytes for invalid attempts. 
+
+![ue31k](images/31k.png)
+
+![ue31l](images/31l.png)
+
+##### Step 2: Filter Out Typical Responses 
+
+To find anomalies, we rerun the command with a size filter: 
+
+```bash  
+sudo ffuf -request req6.txt -request-proto https -mode clusterbomb -w new_users.txt:FUZZUSER -w new_pass.txt:FUZZPASS -fs 3132  
+```  
+
+**Explanation**: 
+- **`-fs 3132`**: Excludes responses with a size of 3132 bytes. 
+
+#### Results: 
+
+One response is significantly larger (**3184 bytes**) for the username `at`. The response contains an error message: 
+
+```  
+You have made too many incorrect login attempts. Please try again in 1 minute(s).  
+```  
+
+This confirms `at` is a valid username. 
+
+![ue31m](images/31m.png)
+
+![ue31n](images/31n.png)
+
+#### Brute Forcing the Password 
+
+Using **Burp Suite Intruder**, we brute force the password for the `at` account. 
+
+##### Step 1: Set Up Intruder 
+
+1. **Mark Payload Positions**: Send a login request to Intruder, then highlight the username and password fields as payload positions. 
+2. **Load Wordlists**: 
+   - Username: Use the single valid username (`at`). 
+   - Password: Use a comprehensive password list. 
+
+##### Step 2: Use Grep - Extract 
+
+**What is Grep - Extract?** 
+
+Grep - Extract lets you specify parts of the response to extract and monitor during an attack. This is useful for identifying key differences in responses, such as error messages or indicators of success. 
+
+**Defining the Grep - Extract Item**: 
+1. Send a sample request to the **HTTP history** tab. 
+2. Highlight the error message text (e.g., `Invalid username or password`). 
+3. Define this as the **Grep - Extract** item in the attack settings. 
+
+![ue31p](images/31p.png)
+
+#### Step 3: Analyze the Responses 
+
+- As the attack runs, responses are analyzed for the Grep - Extract item. 
+- A **blank value** in the **-warning>** column indicates no error message, signaling a successful login attempt. 
+
+In this case, we identify the password `qwerty` for the user `at`. 
+
+![ue31q](images/31q.png)
+
+#### Logging In 
+
+Using the credentials `at:qwerty`, we log into the application successfully. 
+
+![ue31r](images/31r.png)
+
+#### Key Takeaways 
+
+1. **Error Message Enumeration**: Applications may inadvertently reveal valid usernames through different responses for locked vs. invalid accounts. 
+2. **FFUF Filters**: Using **`-fs`** to filter response sizes helps quickly identify anomalies. 
+3. **Grep - Extract in Burp**: Extracting and monitoring key response elements simplifies the process of identifying successful login attempts. 
+
