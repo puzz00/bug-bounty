@@ -227,7 +227,7 @@ Avoiding common scoping mistakes is crucial for successful bug bounty hunting. B
 
 ## High-Level Overview of Web Technologies
 
-To succeed in bug bounty hunting, it’s essential to understand the core technologies that power web applications. Having a foundational knowledge of how web applications are built and function will help you identify potential vulnerabilities. This section covers key web technologies, including HTML, CSS, JavaScript, HTTP, and DNS.
+To succeed in bug bounty hunting, it’s essential to understand the core technologies that power web applications. Having a foundational knowledge of how web applications are built and function will help you identify potential vulnerabilities. This section covers key web technologies, including HTML, CSS, JavaScript, HTTP, DNS and APIs.
 
 ### HTML (HyperText Markup Language)
 
@@ -308,9 +308,118 @@ DNS is the system that translates human-readable domain names (e.g., `example.co
 - **Subdomains**: Bug bounty programs often list subdomains in scope. Understanding DNS helps in finding potential subdomains, which can be points of entry.
 - **DNS Security Issues**: Some attacks, like DNS spoofing, can affect how users interact with the site. Testing for misconfigured DNS records or subdomain vulnerabilities can sometimes reveal takeover opportunities.
 
+### Application Programming Interfaces
+
+Since we are testing modern **web applications** it makes sense to cover what **APIs** are since they are an essential part of a web application.
+
+#### API Abstracted Analogy
+
+A good analogy is to consider a client in a restaurant ordering a meal.
+
+Here’s how the **restaurant** represents a web application, and the **API** acts as the waiter facilitating the process:
+
+1. **You (the user/client)** look at the menu and decide what you want.
+2. **The waiter (API)** takes your order and delivers it to the **kitchen (server/backend)**.
+3. The **kitchen (server/backend)** prepares your food based on your request.
+4. The **waiter (API)** brings the food back to you, neatly plated, without you needing to know how it was made.
+
+In this analogy we can see the following points:
+
+- **The API is the middleman**—you don’t interact with the kitchen directly.
+- **The API follows rules**—just like a waiter only takes menu orders, an API only accepts specific requests (e.g., `GET /weather?city=London`).
+- **Security matters**—just like you shouldn’t be able to walk into the kitchen and cook your own meal, users shouldn’t access backend data without proper authorization.
+- **APIs abstract complexity**—you don’t need to know the recipe or cooking process, just like you don’t need to understand server logic when using an API.
+
+#### High Level Overview of APIs
+
+An **Application Programming Interface (API)** is a set of rules that allow different software components to communicate with each other. In web applications, APIs are commonly used to provide backend functionality, allowing frontends, mobile apps, or third-party services to interact with a system.
+
+- **REST APIs** (Representational State Transfer) – Use standard HTTP methods (`GET`, `POST`, `PUT`, `DELETE`) and return data in JSON format.
+- **GraphQL APIs** – Allow clients to request specific data, reducing over-fetching or under-fetching.
+- **SOAP APIs** – Use XML and follow strict protocol standards.
+- **WebSockets & gRPC** – Used for real-time communication and high-performance APIs.
+
+In essence, we can think of APIs as websites for websites - they provide data without the fancy html and css styling which is really only for humans. Machines do not need the web page to look nice - they just want raw data which is what APIs provide.
+
+Just like a website serves content for human users, an **API serves content for other programs or websites**. Instead of HTML pages, an API delivers **structured data (like JSON or XML)** that other applications can read and use.
+
+- When you visit `www.example.com`, your browser gets an **HTML webpage** to display.
+- When an app requests `api.example.com/data`, it gets **JSON data** instead of a web page.
+
+##### **Example Comparison**
+| **Websites (for humans)** | **APIs (for machines)** |
+|------------------|------------------|
+| Display data in a graphical format (HTML, CSS, JavaScript) | Provide raw data in JSON, XML, or other structured formats |
+| Users interact by clicking links, buttons, and filling forms | Programs interact by sending HTTP requests (`GET`, `POST`, etc.) |
+| Accessed via browsers like Chrome or Firefox | Accessed via code, scripts, or tools like Postman and curl |
+| Example: `www.weather.com` shows a webpage with temperature, forecasts, etc. | Example: `api.weather.com/v1/current?city=London` returns `{ "temp": 15, "condition": "Cloudy" }` |
+
+>[!TIP]
+>When looking for APIs to test if we find a response which contains only data in JSON or XML formats it stands a good chance we have found one
+
+#### A Simple Example | A Web App Using API Calls
+
+Let's consider a **weather dashboard** that fetches live weather data from an external API and displays it on a webpage.
+
+##### **How It Works:**
+1. The user enters a city name in a search bar.
+2. The frontend JavaScript makes an **API request** to a weather service (e.g., OpenWeatherMap).
+3. The API responds with **JSON data** containing weather details.
+4. The webpage updates dynamically to display the weather information.
+
+When the API call is made, the weather service responds with structured data:
+```json
+{
+  "main": { "temp": 15.5 },
+  "weather": [ { "description": "clear sky" } ]
+}
+```
+
+#### **Why Test APIs in Bug Bounty?**
+APIs are a critical attack surface because they handle direct data exchange, authentication, and business logic. Testing APIs can uncover serious vulnerabilities, including:
+
+1. **Broken Authentication & Authorization**
+   - Weak token validation (JWT, OAuth, API keys).
+   - Insecure session handling.
+   - Bypassing authentication with parameter tampering.
+
+2. **Insecure Direct Object References (IDOR)**
+   - Accessing unauthorized data by modifying object IDs in API requests.
+   - Example: Changing `/api/user/123` to `/api/user/124` to access another user's details.
+
+>[!NOTE]
+>When referring to APIs we term **IDOR** as **Broken Object Level Authorization | BOLA** and it is one of if not the most common vulnerabilities we find with APIs
+
+3. **Rate Limiting & Denial of Service (DoS)**
+   - APIs often lack proper rate limiting, allowing attackers to brute-force credentials or flood the system with requests.
+
+4. **Sensitive Data Exposure**
+   - APIs might return PII, internal server information, or secrets in responses.
+   - Misconfigured error handling can leak database structures or debug messages.
+
+5. **Mass Assignment Vulnerabilities**
+   - API endpoints that allow unrestricted object updates can lead to privilege escalation.
+   - Example: A user modifying their role by sending `{ "role": "admin" }` in a `PUT` request.
+
+6. **CORS Misconfigurations**
+   - Poorly configured CORS policies may allow unauthorized third-party domains to make API requests on behalf of users.
+
+7. **Server-Side Request Forgery (SSRF)**
+   - If an API fetches external URLs (e.g., image uploads, webhooks), an attacker may abuse this to access internal services.
+
+8. **GraphQL & SOAP-Specific Attacks**
+   - **GraphQL:** Query batching abuse, excessive data exposure, introspection leaks.
+   - **SOAP:** XML External Entity (XXE) injection, insecure WSDL exposure.
+
+#### **Key Takeaways for Bug Bounty Hunters**
+- **APIs often expose sensitive backend functionality** that attackers can abuse.
+- **Testing APIs requires tools like Burp Suite, Zap, Postman, and curl** to manually manipulate requests.
+- **Authentication & authorization flaws** are among the most impactful API vulnerabilities | we will be looking in more depth at **authorization flaws** such as **Broken Object Level Authorization** and **Broken Function Level Authorization** later in this repo.
+- **Even if an API isn’t documented, you can still discover endpoints** by analyzing JavaScript files, HTTP requests, and guessing common paths (`/api/v1/`, `/graphql`) | we will be covering api discovery and enumeration soon in this repo
+
 ### Summary
 
-A foundational understanding of these core web technologies — HTML, CSS, JavaScript, HTTP, and DNS — is crucial for effective bug bounty hunting. They provide insight into how web applications operate, where vulnerabilities may lie, and how an application’s security can be tested responsibly. By mastering these concepts, you’ll be better equipped to identify, analyze, and report vulnerabilities that can improve an application’s overall security posture and even better make you some money 😃
+A foundational understanding of these core web technologies — HTML, CSS, JavaScript, HTTP, DNS and APIs — is crucial for effective bug bounty hunting. They provide insight into how web applications operate, where vulnerabilities may lie, and how an application’s security can be tested responsibly. By mastering these concepts, you’ll be better equipped to identify, analyze, and report vulnerabilities that can improve an application’s overall security posture and even better make you some money 😃
 
 >[!TIP]
 >When starting out it is useful to work on bounties which offer no financial pay outs | it seems weird to suggest this but there is less competition and lots can be learned
