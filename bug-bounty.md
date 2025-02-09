@@ -1335,3 +1335,170 @@ Using the credentials `at:qwerty`, we log into the application successfully.
 2. **FFUF Filters**: Using **`-fs`** to filter response sizes helps quickly identify anomalies. 
 3. **Grep - Extract in Burp**: Extracting and monitoring key response elements simplifies the process of identifying successful login attempts. 
 
+### Understanding and Attacking Token Based Authentication
+
+Token-based authentication is a modern approach to managing user sessions in web applications and APIs. Instead of maintaining server-side sessions, the server issues a cryptographically signed token to the client after successful authentication. This token is then included in subsequent requests to authenticate the user without requiring the server to track session state.
+
+This method differs from traditional session-based authentication, where the server generates and stores session IDs that clients must send with each request. Token-based authentication is stateless, meaning each request is self-contained and does not require session lookups, making it more scalable for distributed applications.
+
+#### JSON Web Tokens (JWTs) and OAuth
+One of the most widely used token formats is **JSON Web Token (JWT)**, which consists of three parts: header, payload, and signature. JWTs can be used independently or as part of **OAuth 2.0**, an authorization framework that allows secure access delegation without exposing user credentials. OAuth commonly issues **access tokens** and **refresh tokens** to control session lifetimes and privilege scopes.
+
+>[!NOTE]
+>We will be looking at **JWTs** in more detail soon as they are frequently encountered when testing modern web applications and especially REST APIs
+
+#### Where Are Tokens Stored?
+Tokens can be stored in different locations, each with security implications. Knowing where to look for them can help us speed up our testing workflow.
+
+- **Authorization Header:** The recommended approach. Sent in HTTP requests as `Authorization: Bearer <token>`.
+- **Query Parameters:** **Not recommended.** Tokens in URLs can be logged in browser history, server logs, and referrer headers. This is not typically found but useful to know about: `GET /api/v2/resource?access_token=<token>`
+- **Cookies:** Secure if configured properly (`HttpOnly`, `Secure`, `SameSite=Strict`). This approach helps protect against XSS but **may be vulnerable to CSRF** if not handled correctly.
+- **Custom Headers:** We sometimes find tokens in **custom headers** especially if an organization has built a bespoke web app | an example would be `X-Auth-Token: <token>`
+- **Request Body:** Suitable for POST requests but should **never** be included in GET request bodies, as URLs can be cached or logged.
+
+#### Security Considerations
+Even though this repo is about **hacking** it is useful to know how developers operate | here are some common security considerations which are not always followed:
+
+- Always use **HTTPS** to protect tokens from being intercepted via MITM attacks.
+- Minimize token exposure by ensuring they are **not stored in localStorage or sessionStorage** (vulnerable to XSS).
+- Implement **short-lived access tokens** and use refresh tokens securely.
+- Validate and verify JWTs properly, ensuring signatures and claims (e.g., `exp`, `iss`, `aud`) are checked | we will be looking at these in more detail soon
+
+#### Pros and Cons of Token-Based Authentication
+✅ **Pros:**
+- Stateless: No need for server-side session storage | reduced storage space needed.
+- Scalable: Ideal for microservices and distributed systems.
+- Flexible: Works across different platforms and devices.
+
+❌ **Cons:**
+- More complex security requirements (token validation, revocation, expiration).
+- Harder to revoke tokens compared to session-based authentication.
+- **Improper implementation** can lead to **severe security risks** (JWT attacks like **none algorithm abuse**, **signature stripping**, **weak secret cracking** and **token leakage**).
+
+>[!NOTE]
+>The last **con** given above is of great interest to us as bug bounty researchers :smiley: 
+
+#### Common Use Cases
+Token-based authentication is widely used in:
+- **Single Page Applications (SPAs)** where sessions must persist without frequent server requests.
+- **Mobile and IoT Applications** that communicate with RESTful APIs.
+- **Microservices Architectures** where stateless authentication is required across multiple services.
+- **OAuth Implementations** for third-party logins and delegated access.
+
+#### Prevalence in Modern Web Applications
+JWTs and token-based authentication are **extremely common** in modern web apps, especially in **REST APIs, GraphQL APIs, and microservices**. Many **OAuth providers (Google, Facebook, GitHub)** rely on tokens to grant API access. However, **improper implementation** remains a **frequent security issue** making it a prime target for penetration testing and bug bounty research.
+
+### JSON Web Tokens
+
+A **JSON Web Token (JWT)** is a compact, self-contained token format used for authentication and secure data exchange between parties. JWTs are widely used in modern web applications and APIs to implement **stateless authentication**, meaning the server does not need to store session data. Instead, all required authentication information is contained within the token itself, which is cryptographically signed to ensure integrity.
+
+JWTs were developed to address the need for a **lightweight, scalable, and interoperable** method of authentication, particularly for distributed systems like microservices and Single Page Applications (SPAs).
+
+#### How JWTs Are Constructed
+A JWT consists of three base64url-encoded parts, separated by dots (`.`):
+
+```
+header.payload.signature
+```
+
+Each part serves a specific purpose:
+
+1. **Header** – Contains metadata about the token, including the algorithm used for signing.
+2. **Payload** – Contains **claims** which are key-value pairs that carry authentication and authorization information.
+3. **Signature** – A cryptographic signature that ensures the token’s integrity and (in theory) prevents tampering.
+
+#### How JWTs Are Generated and Used
+The process of generating and using a JWT follows these steps:
+
+1. **User Authentication** – A user logs in with credentials (e.g., username and password).
+2. **Token Issuance** – The server validates the credentials and generates a JWT containing user-related claims.
+3. **Token Storage** – The JWT is sent to the client and stored (e.g., in a secure cookie or in-memory).
+4. **Subsequent Requests** – The client includes the JWT in the `Authorization` header (`Bearer <token>`) when making API requests.
+5. **Token Verification** – The server decodes and (if implemented correctly) validates the JWT, ensuring its integrity and checking claims (e.g., expiration).
+6. **Access Granted or Denied** – Based on the JWT’s claims and validity, the request is either allowed or rejected.
+
+#### The JWT Header
+The **header** is a JSON object containing metadata about the token. It typically includes:
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+- **`alg` (Algorithm)** – Specifies the cryptographic algorithm used to sign the token (e.g., `HS256` for HMAC-SHA256, `RS256` for RSA).
+- **`typ` (Type)** – Indicates the type of token (always `JWT`).
+- **Optional Fields:** Some headers may include `kid` (Key ID) for key management or `cty` (Content Type) when nesting JWTs.
+
+#### The JWT Payload (Claims)
+The **payload** contains **claims**, which provide information about the token's subject, issuer, expiration, and more.
+
+##### Types of Claims
+Claims are divided into **registered claims**, **public claims**, and **private claims**:
+
+1. **Registered Claims** – Standardized claims defined by the JWT specification:
+   - `iss` (Issuer) – Identifies the entity that issued the token.
+   - `sub` (Subject) – Identifies the principal (e.g., user ID, email).
+   - `aud` (Audience) – Specifies the intended recipient of the token.
+   - `exp` (Expiration Time) – Defines when the token expires.
+   - `iat` (Issued At) – Indicates when the token was issued.
+   - `nbf` (Not Before) – Specifies when the token becomes valid.
+
+2. **Public Claims** – Custom claims that are widely recognized and shared:
+   - `role` – Defines the user's role (e.g., `"admin"`, `"user"`).
+   - `permissions` – Specifies user privileges (e.g., `["read", "write"]`).
+   - `email` – Stores the user's email address.
+
+3. **Private Claims** – Custom claims specific to an application:
+   - `department` – Assigns a department within a company.
+   - `cartId` – Links the token to an e-commerce shopping cart.
+
+>[!NOTE]
+>The value used for the **expiration time** and **issued at** is given using **unix timestamp** so dont worry if it looks weird
+
+#### Example JWT Payload
+```json
+{
+  "iss": "example.com",
+  "sub": "1234567890",
+  "aud": "my-api",
+  "exp": 1715606400,
+  "iat": 1715602800,
+  "nbf": 1715602800,
+  "role": "admin",
+  "permissions": ["read", "write"],
+  "department": "IT"
+}
+```
+
+#### The JWT Signature
+The **signature** ensures that the token has not been altered. It is generated using the header, payload, and a secret key.
+
+##### How the Signature Is Created
+For HMAC-based JWTs (e.g., `HS256`):
+```
+HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  secret
+)
+```
+For RSA-based JWTs (`RS256`), a private key signs the token, and a public key verifies it.
+
+##### Why the Signature Is Important
+- **Prevents tampering** – If the token is modified, the signature will no longer match.
+- **Ensures authenticity** – The recipient can verify that the token was issued by a trusted party.
+- **Protects against forgeries** – Attackers cannot generate valid tokens without the secret key or private key.
+
+>[!NOTE]
+>Of course we will be looking at how we can attack and bypass signatures since if we can do this we can mess with the claims and have some fun
+
+#### Why JWTs Enable Stateless Session Management
+JWTs eliminate the need for server-side session storage. The authentication state is embedded within the token itself, allowing applications to scale efficiently across distributed systems and microservices. However, since JWTs cannot be easily revoked, they must be managed carefully to prevent misuse.
+
+#### Summary
+- JWTs are **stateless authentication tokens** that store user claims and are cryptographically signed.
+- They consist of three parts: **header**, **payload (claims)**, and **signature**.
+- JWTs are used in **REST APIs, OAuth 2.0, SPAs, and microservices**.
+- Claims can be **registered (standardized)**, **public (widely used)**, or **private (custom application-specific)**.
+- The **signature** ensures integrity and authenticity, preventing token tampering, which is why we will seek to attack or bypass it.
