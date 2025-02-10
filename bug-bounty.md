@@ -1502,3 +1502,88 @@ JWTs eliminate the need for server-side session storage. The authentication stat
 - JWTs are used in **REST APIs, OAuth 2.0, SPAs, and microservices**.
 - Claims can be **registered (standardized)**, **public (widely used)**, or **private (custom application-specific)**.
 - The **signature** ensures integrity and authenticity, preventing token tampering, which is why we will seek to attack or bypass it.
+
+### Attacking JWTs: Exploiting Unverified Signatures
+
+One vulnaribility in JWT-based authentication is the **unverified signature** issue. This occurs when the server does not properly verify the JWT’s signature or incorrectly assumes the token is valid without validating its integrity. In this scenario, an attacker can tamper with the token’s content, change the payload (such as the user or role), and still have the server accept the token as valid.
+
+#### How It Works
+JWTs are designed to be self-contained and secure. When a server issues a JWT, it signs the token with a secret key (HMAC) or a private key (RSA). This signature ensures that no one can alter the payload without invalidating the token. However, if the server **fails to properly verify** the JWT’s signature upon receiving the token, it can lead to authentication bypasses :smiley:
+
+For instance, consider the following scenario where the JWT signature is not being verified:
+
+1. **Initial Token Acquisition** – An attacker, `dduck@duck.duck`, authenticates and receives a JWT. The JWT includes a valid signature, ensuring it’s from a trusted source and cannot be tampered with.
+2. **Signature Manipulation** – The attacker notices that the signature verification on the server is not working correctly. They modify the token, removing most of the signature.
+3. **Token Acceptance** – The modified token is sent back to the server, and despite the missing signature, the server **accepts the JWT as valid**.
+4. **Access Control** – With the unverified signature, the attacker now has the ability to **tamper with the payload**. For example, they can change the email address in the `sub` claim to someone else’s email (e.g., `adam007@example.com`) and use this new JWT to access the dashboard of the `adam007` account.
+5. **Exposing PII** – After modifying the token, the attacker gains access to sensitive information for the account they tampered with, such as personal identifiable information (PII) for `adam007`.
+
+#### Example 1: Using Unverified Signatures to Access Other Users’ Accounts
+- After receiving the token as `dduck@duck.duck` - yes, we are the evil duck! - we inspect the payload of the JWT using [jwt.io](https://jwt.io/) and notice the presence of the `sub` claim with our own email address.
+
+![jwt1](images/jwt1.png)
+
+![jwt2](images/jwt2.png)
+
+- We test for an **unverified signature vulnaribility** by deleting most of the signature and trying to access our own dashboard with it - we find that this works.
+
+![jwt3](images/jwt3.png)
+
+![jwt4](images/jwt4.png)
+
+![jwt5](images/jwt5.png)
+
+- We look around the website and find that an API endpoint returns excessive data, including the email addresses of other users, such as `adam007@example.com`.
+
+![jwt6](images/jwt6.png)
+
+- Using a tool like [Token.dev](https://token.dev/), we generate a new JWT by replacing the `sub` claim with `adam007@example.com` (i.e., impersonating another user).
+
+![jwt7](images/jwt7.png)
+
+- When we use the modified token to access the dashboard, the server does not verify the signature properly and **grants access** to `adam007`'s dashboard. We can now view and potentially manipulate their sensitive data.
+
+![jwt8](images/jwt8.png)
+
+#### Example 2: Forging Admin JWT to Access Admin Panel
+- In another example, we try to access an admin panel but receive an error message that only users with the `administrator` role are allowed.
+
+![jwt9](images/jwt9.png)
+
+- By using the knowledge that the signature is not properly verified (as we previously tested with the `wiener` account by deleting most of it and submitting it), we forge a new JWT where the `sub` claim is changed to `"administrator"`.
+
+![jwt10](images/jwt10.png)
+
+- We test this forged JWT, and **it works**—we now have access to the admin panel.
+
+![jwt11](images/jwt11.png)
+
+- With administrator access, we use the panel to **delete the user `carlos`** via the `/admin/delete?username=carlos` endpoint.
+
+![jwt12](images/jwt12.png)
+
+![jwt13](images/jwt13.png)
+
+#### Why This Happens: Why JWT Signature Verification Might Be Bypassed
+It might seem odd that we can bypass authentication because of unverified signatures - it is the signature afterall which is super important so why would developers allow this to happen?
+
+Well, JWT authentication bypass vulnerabilities involving unverified signatures are sometimes found in production applications due to:
+
+- **Lack of Security Awareness** – Developers may not fully understand the security implications of improper JWT verification.
+- **Speed Over Security** – In the rush to deploy an application, developers may cut corners and fail to implement proper signature verification.
+- **Misconfigured Dependencies** – Sometimes, the libraries used to parse and validate JWTs may be misconfigured or use default settings that do not properly verify the signature. A common example of this is mixing up the `decode()` and `verify()` methods in jwt libraries such as **jsonwebtoken** for **node.js**
+
+#### Why We Should Test for Unverified Signatures
+Testing for unverified JWT signatures is a critical part of a penetration test or bug bounty program because it can lead to severe security vulnerabilities, such as:
+
+- **Account Impersonation** – Attackers can impersonate other users, gaining access to their sensitive data or performing actions on their behalf.
+- **Privilege Escalation** – Attackers can modify their roles or privileges within the system, granting themselves administrator access or other higher-level privileges.
+- **Data Breach** – Sensitive data, such as PII or financial information, can be exposed if the attacker impersonates other users.
+- **Critical Operations** – In some cases, attackers can forge tokens to carry out high-impact actions (e.g., deleting user accounts, transferring funds, etc.).
+
+Because of these risks, it’s always a good idea to **test for unverified signatures** when performing research for bug bounty programs.
+
+#### Conclusion
+Exploiting unverified JWT signatures is a critical vulnerability that allows attackers to bypass authentication mechanisms, impersonate users, and access sensitive information. This vulnerability often arises from improper configuration or a lack of understanding of how JWTs should be securely handled.
+
+As bug bounty researchers we should always test for this type of vulnerability when we find jwts are being used by manipulating and forging them to see if the server properly validates their signatures.
