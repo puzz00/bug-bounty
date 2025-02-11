@@ -1600,7 +1600,7 @@ In some cases, poorly configured or vulnerable JWT libraries may accept `"none"`
 
 Let’s walk through an example where we test for the `"none"` algorithm attack on a server that uses JWT for authentication.
 
-![jwt14](images/jwt/14.png)
+![jwt14](images/jwt14.png)
 
 #### Step 1: Obtain a JWT for a Low Privilege User
 
@@ -1612,7 +1612,7 @@ curl -H "Content-Type: application/json" -X POST -d '{"identifier":"elliot","pas
 
 This command sends the username and password to the authentication endpoint and returns a JWT token, which is typically used for subsequent requests. We’ll extract the JWT from the response.
 
-![jwt15](images/jwt/15.png)
+![jwt15](images/jwt15.png)
 
 #### Step 2: Attempt to Tamper with the Signature
 
@@ -1644,7 +1644,7 @@ Since tampering with the signature doesn’t work, we test the `"none"` algorith
    }
    ```
 
-![jwt16](images/jwt/16.png)
+![jwt16](images/jwt16.png)
 
 2. **Modify the Header to Use "none"**
 
@@ -1662,7 +1662,7 @@ Since tampering with the signature doesn’t work, we test the `"none"` algorith
 
    In this case, we assume that the `id` value of `1` corresponds to an admin user (since `id: 2` was our low-priv user). Changing `id: 2` to `id: 1` is our attempt to elevate privileges.
 
-![jwt17](images/jwt/17.png)
+![jwt17](images/jwt17.png)
 
 3. **Construct the New Token**
 
@@ -1677,7 +1677,7 @@ Since tampering with the signature doesn’t work, we test the `"none"` algorith
 >[!IMPORTANT]
 >Even when sending a jwt with **no signature** we still need to **include the second .** after the payload
 
-![jwt18](images/jwt/18.png)
+![jwt18](images/jwt18.png)
 
 4. **Use the Forged Token**
 
@@ -1689,7 +1689,7 @@ Since tampering with the signature doesn’t work, we test the `"none"` algorith
 
    The server is vulnerable to the `"none"` algorithm attack, so we find this request succeeds in creating a new admin user. After that, we can log in as the new admin and perform privileged actions.
 
-![jwt19](images/jwt/19.png)
+![jwt19](images/jwt19.png)
 
 #### Why Does This Attack Work?
 
