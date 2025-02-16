@@ -494,6 +494,89 @@ Fingerprinting provides a roadmap for testing by building a strong knowledge bas
 >[!NOTE]
 >Be thorough when fingerprinting targets - keep notes and screenshots - all data at this stage is useful | consider this - is it better to throw 10_000 darts at a tiny target or just 1 at a massive target - fingerprinting increases the size of our targets attack surface
 
+## Generating Custom Wordlists for Fuzzing
+
+In subsequent sections of this repo we will be looking at how we can perform recon on the target websites by fuzzing directories, subdomains and virtual hosts. Before we get into the details, it makes sense to look at how we can create wordlists to help us with these tasks.
+
+When performing directory, subdomain, or virtual host (vhost) fuzzing, starting with **generic wordlists** like `/usr/share/dirb/wordlists/common.txt` is a good option, but often, you will achieve better results by creating **custom wordlists** tailored to the target. This can include using [CeWL](https://github.com/digininja/CeWL) to gather words from the target's web content or leveraging [getjswords.py](https://github.com/m4ll0k/BBTz/blob/master/getjswords.py) to extract words from JavaScript files. Here's how to go about it:
+
+### Using CeWL for Custom Wordlists
+
+**CeWL** is a command-line tool that allows you to scrape words from a target website to create a custom wordlist. It’s useful for generating wordlists that are specific to the content or language of a particular site, making your fuzzing more relevant and potentially more successful.
+
+**Basic CeWL Usage:**
+
+1. **Basic Scraping:**
+
+   You can scrape a website for words and generate a custom wordlist by running:
+
+   ```bash
+   cewl https://example.com -d 2 -m 4
+   ```
+
+   - `-d 2` specifies the **depth** of the crawl (how many pages deep).
+   - `-m 4` specifies a **minimum word length** of 4 characters. Only words that meet this criteria will be included.
+
+2. **Adding Authentication Headers:**
+
+   If the target site requires authentication you can add an authentication header like this:
+
+   ```bash
+   cewl https://example.com --header "Cookie: <value goes here>" -d 2 -m 4
+   ```
+
+   This allows you to scrape pages behind a login, generating a more complete wordlist for authenticated areas.
+
+3. **Custom Output File:**
+
+   To save the output to a file, you can add the `-w` flag:
+
+   ```bash
+   cewl https://example.com -d 2 -m 4 -w custom_wordlist.txt
+   ```
+
+   This will save your custom wordlist to `custom_wordlist.txt` for use in fuzzing.
+
+![cwl1](images/cwl1.png)
+
+![cwl1](images/cwl2.png)
+
+### Using `getjswords.py` for Extracting Words from JS Files
+
+Another useful tool for building wordlists is **getjswords.py**, which extracts words directly from JavaScript files, especially URLs or endpoints within JavaScript code. This can be highly useful if the site has dynamic content or relies on JavaScript for rendering API endpoints, paths, or other useful targets.
+
+1. **Usage:**
+
+   You can run `getjswords.py` with a target URL, like this:
+
+   ```bash
+   cat ./js_urls.txt | python3 getjswords.py
+   ```
+
+   This will extract words from the JavaScript files on the website, which could include useful paths, parameters, or keywords that are often missed by standard wordlist fuzzing.
+
+>[!NOTE]
+>The `js_urls.txt` file is a list of urls we have harvested which point to `.js` resources
+
+### Using SecLists for Targeting Specific Technologies
+
+If you know the **technologies** or **frameworks** used by the target, you can tailor your wordlist by focusing on specific subdomains, directories, or vhosts associated with that technology. **SecLists** includes various wordlists for common tech stacks.
+
+For example, if you are targeting a **WordPress** site, you can use:
+
+```bash
+/opt/SecLists/Discovery/Web-Content/CMS/trickiest-cms-wordlist/wordpress.txt
+```
+
+This will ensure you are targeting paths commonly found in WordPress installations.
+
+>[!NOTE]
+>`/opt` is specified since it is common practise on linux to use it as a place to keep third-party software and various **optional** tools
+
+### Conclusion
+
+While **generic wordlists** are a great starting point, generating **custom wordlists** using tools like **CeWL** and **getjswords.py** can improve the accuracy of your fuzzing and increase the likelihood of finding hidden directories, subdomains, or vhosts. By incorporating target-specific content and technology-based wordlists, you can tailor your fuzzing approach to be more effective and efficient.
+
 ## Directory Enumeration and Fuzzing
 
 Directory enumeration and fuzzing are essential steps in bug bounty hunting as they help uncover hidden or misconfigured directories and files on a web server. These can reveal admin panels, backup files, test environments, and other sensitive data that are not intended to be publicly accessible.
