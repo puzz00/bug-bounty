@@ -786,6 +786,44 @@ Subdomain enumeration opens up more potential targets for bug bounty hunting, pa
 >[!NOTE]
 >Subdomains may have subdomains | for example `https://dev.tesla.com` might have something such as `https://admin.dev.tesla.com` so it is worthwhile checking for these if the scope allows it
 
+## Fuzzing Virtual Hosts (VHosts)
+
+**VHost fuzzing** is the process of discovering hidden virtual hosts on a web server by sending HTTP requests with different hostnames in the `Host` header. It is used to find domains or subdomains that share the same IP address but are hosted on different virtual hosts. This is a common technique when a server is hosting multiple websites or services under different domains.
+
+### How VHost Fuzzing Differs from Subdomain Fuzzing
+
+- **Subdomain Fuzzing**: Involves discovering **subdomains** (e.g., `admin.example.com`, `blog.example.com`) of a **main domain** (e.g., `example.com`). Subdomain fuzzing relies on discovering DNS entries that point to the same or different IP addresses but are still technically part of the main domain.
+
+- **VHost Fuzzing**: Involves sending requests with different hostnames in the `Host` header to discover **virtual hosts** hosted on the **same IP address**. While subdomain fuzzing looks for domains that are **part of** the target's DNS configuration, VHost fuzzing is used to identify **additional web applications or services** running on the same server but under different names. These virtual hosts are not necessarily part of the DNS system and might not show up during subdomain enumeration.
+
+### How VHost Fuzzing Works
+
+To fuzz virtual hosts, you send HTTP requests with different hostnames in the `Host` header, and if the web server is configured to respond to these different hostnames, you may uncover **hidden applications** or **services**. This can be useful when testing for multiple services running on the same server, which could have different vulnerabilities or configurations.
+
+**Example using `curl`**:
+
+```bash
+curl -H "Host: admin.example.com" http://192.168.1.100
+```
+
+In this case, the request is sent to the IP `192.168.1.100`, but it specifies `admin.example.com` as the hostname. If the server has a virtual host configured for `admin.example.com`, it will respond as if that domain is being accessed, even if it's not in the DNS records.
+
+### VHost Fuzzing With ffuf
+
+- **`ffuf` (Fuzz Faster U Fool)**: A fast web fuzzer that supports VHost fuzzing with the `-H "Host: <hostname>"` flag.
+  
+  Example:
+
+  ```bash
+  ffuf -u http://192.168.1.100/ -H "Host: FUZZ.example.com" -w vhost_wordlist.txt
+  ```
+
+We can also add the `FUZZ` keyword inside a saved request and it should be noted that we can use domain names instead of ip addresses.
+
+### Conclusion
+
+While subdomain fuzzing is focused on discovering subdomains within a main domain's DNS setup, VHost fuzzing is concerned with finding hidden web applications or services hosted under different names on the same IP address. It’s a useful technique when testing for **misconfigured servers** or identifying **additional targets** that could have security vulnerabilities.
+
 ## Burp Suite Overview
 
 **Burp Suite** is a widely-used web vulnerability scanner and proxy tool in the cybersecurity community, particularly popular among bug bounty hunters and penetration testers. Developed by PortSwigger, Burp Suite provides a suite of tools to analyze, intercept, and manipulate HTTP/S traffic, making it an essential tool for finding security flaws in web applications.
